@@ -5,8 +5,10 @@ const { PDFDocument } = require('pdf-lib');
 
 // Configuration - reuse cookies from crawler
 const CONFIG = {
-  OUTPUT_DIR: './crawler_output',
-  SCREENSHOTS_DIR: './crawler_output/screenshots',
+  IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
+  BASE_OUTPUT_DIR: './crawler_output',
+  OUTPUT_DIR: null, // Will be set to BASE_OUTPUT_DIR/{idea-slug}
+  SCREENSHOTS_DIR: null, // Will be set to OUTPUT_DIR/screenshots
   TIMEOUT: 60000,
   DELAY_BETWEEN_REQUESTS: 2000,
   COOKIES: [
@@ -53,62 +55,139 @@ const CONFIG = {
   }
 };
 
-// Extract URLs from crawl_report.md
-function extractUrls() {
-  const reportPath = path.join(CONFIG.OUTPUT_DIR, 'crawl_report.md');
-  const content = fs.readFileSync(reportPath, 'utf-8');
-
-  // Match URLs in the format **URL:** [url](url)
-  const urlRegex = /\*\*URL:\*\* \[(https?:\/\/[^\]]+)\]/g;
-  const urls = [];
-  let match;
-
-  while ((match = urlRegex.exec(content)) !== null) {
-    urls.push(match[1]);
+// Extract idea slug from URL
+function extractIdeaSlug(ideaUrl) {
+  try {
+    const urlObj = new URL(ideaUrl);
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    if (pathParts.length >= 2 && pathParts[0] === 'idea') {
+      return pathParts[1];
+    }
+    return null;
+  } catch {
+    return null;
   }
-
-  // Remove duplicates while preserving order
-  return [...new Set(urls)];
 }
 
-async function takeScreenshots(urls) {
-  console.log('Launching browser...');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+// Detect idea of the day URL
+async function detectIdeaOfTheDay(browser) {
+  console.log('🔍 Detecting Idea of the Day...');
+  console.log(`   Navigating to: ${CONFIG.IDEA_OF_THE_DAY_URL}`);
+
+  const page = await browser.newPage();
+  await page.setCookie(...CONFIG.COOKIES);
+  await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+  await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+  await page.waitForSelector('body', { timeout: 10000 });
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  const currentUrl = page.url();
+  console.log(`   Current URL after load: ${currentUrl}`);
+
+  const ideaUrl = await page.evaluate(() => {
+    if (window.location.pathname.startsWith('/idea/') && !window.location.pathname.includes('idea-of-the-day')) {
+      return window.location.href;
+    }
+    const ideaLinks = document.querySelectorAll('a[href*="/idea/"]');
+    for (const link of ideaLinks) {
+      const href = link.href;
+      const pathParts = new URL(href).pathname.split('/').filter(p => p);
+      if (pathParts.length === 2 && pathParts[0] === 'idea') {
+        return href;
+      }
+    }
+    return null;
   });
 
-  // Create screenshots directory
-  if (!fs.existsSync(CONFIG.SCREENSHOTS_DIR)) {
-    fs.mkdirSync(CONFIG.SCREENSHOTS_DIR, { recursive: true });
+  await page.close();
+
+  if (ideaUrl) {
+    console.log(`✅ Detected Idea of the Day: ${ideaUrl}`);
+    return ideaUrl;
   }
 
+  if (currentUrl.includes('/idea/') && !currentUrl.includes('idea-of-the-day')) {
+    console.log(`✅ Redirected to Idea of the Day: ${currentUrl}`);
+    return currentUrl;
+  }
+
+  throw new Error('Could not detect Idea of the Day URL');
+}
+
+// Crawl to get all related URLs for an idea
+async function crawlIdeaUrls(browser, startUrl) {
+  console.log('\n🕷️ Crawling idea pages...');
+
+  const visitedUrls = new Set();
+  const allUrls = [];
+  const urlQueue = [{ url: startUrl, depth: 0 }];
+  const maxDepth = 1;
+  const ideaSlug = extractIdeaSlug(startUrl);
+
+  while (urlQueue.length > 0) {
+    const { url: pageUrl, depth } = urlQueue.shift();
+
+    if (visitedUrls.has(pageUrl) || depth > maxDepth) continue;
+
+    // Only crawl URLs that belong to this idea
+    if (!pageUrl.includes(ideaSlug)) continue;
+
+    visitedUrls.add(pageUrl);
+    allUrls.push(pageUrl);
+    console.log(`   [${allUrls.length}] Found: ${pageUrl}`);
+
+    if (depth < maxDepth) {
+      try {
+        const page = await browser.newPage();
+        await page.setCookie(...CONFIG.COOKIES);
+        await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+        await page.waitForSelector('body', { timeout: 10000 });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const links = await page.$$eval('a', anchors =>
+          anchors.map(a => a.href).filter(href => href && href.length > 0)
+        );
+
+        await page.close();
+
+        for (const link of links) {
+          if (!visitedUrls.has(link) && link.includes(ideaSlug)) {
+            urlQueue.push({ url: link, depth: depth + 1 });
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`   Error crawling ${pageUrl}: ${error.message}`);
+      }
+    }
+  }
+
+  console.log(`✅ Found ${allUrls.length} pages for this idea\n`);
+  return allUrls;
+}
+
+async function takeScreenshots(browser, urls, screenshotsDir) {
+  console.log('📸 Taking screenshots...');
   const screenshotPaths = [];
 
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
-    console.log(`[${i + 1}/${urls.length}] Screenshotting: ${url}`);
+    console.log(`   [${i + 1}/${urls.length}] ${url}`);
 
     try {
       const page = await browser.newPage();
-
-      // Set viewport for consistent screenshots
       await page.setViewport({ width: 1440, height: 900 });
-
-      // Set cookies
       await page.setCookie(...CONFIG.COOKIES);
-
-      // Set headers
       await page.setExtraHTTPHeaders(CONFIG.HEADERS);
 
       await page.goto(url, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
-
-      // Wait for content to render
       await page.waitForSelector('body', { timeout: 10000 });
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Take full page screenshot
-      const screenshotPath = path.join(CONFIG.SCREENSHOTS_DIR, `page_${String(i + 1).padStart(3, '0')}.png`);
+      const screenshotPath = path.join(screenshotsDir, `page_${String(i + 1).padStart(3, '0')}.png`);
       await page.screenshot({
         path: screenshotPath,
         fullPage: true,
@@ -116,47 +195,39 @@ async function takeScreenshots(urls) {
       });
 
       screenshotPaths.push(screenshotPath);
-      console.log(`   Saved: ${screenshotPath}`);
-
       await page.close();
 
-      // Delay between requests
       if (i < urls.length - 1) {
         await new Promise(resolve => setTimeout(resolve, CONFIG.DELAY_BETWEEN_REQUESTS));
       }
     } catch (error) {
-      console.error(`   Error: ${error.message}`);
+      console.error(`      Error: ${error.message}`);
     }
   }
 
-  await browser.close();
   return screenshotPaths;
 }
 
-async function mergeToPdf(screenshotPaths) {
-  console.log('\nMerging screenshots into PDF...');
+async function mergeToPdf(screenshotPaths, outputPath) {
+  console.log('\n📄 Merging screenshots into PDF...');
 
   const pdfDoc = await PDFDocument.create();
 
   for (let i = 0; i < screenshotPaths.length; i++) {
     const screenshotPath = screenshotPaths[i];
-    console.log(`[${i + 1}/${screenshotPaths.length}] Adding: ${path.basename(screenshotPath)}`);
+    console.log(`   [${i + 1}/${screenshotPaths.length}] Adding: ${path.basename(screenshotPath)}`);
 
     try {
       const imageBytes = fs.readFileSync(screenshotPath);
       const image = await pdfDoc.embedPng(imageBytes);
 
-      // Get image dimensions
       const { width, height } = image.scale(1);
-
-      // Create page with image dimensions (or scale to fit A4 width)
       const maxWidth = 595; // A4 width in points
       const scale = maxWidth / width;
       const scaledWidth = width * scale;
       const scaledHeight = height * scale;
 
       const page = pdfDoc.addPage([scaledWidth, scaledHeight]);
-
       page.drawImage(image, {
         x: 0,
         y: 0,
@@ -164,15 +235,14 @@ async function mergeToPdf(screenshotPaths) {
         height: scaledHeight,
       });
     } catch (error) {
-      console.error(`   Error adding ${screenshotPath}: ${error.message}`);
+      console.error(`      Error adding ${screenshotPath}: ${error.message}`);
     }
   }
 
   const pdfBytes = await pdfDoc.save();
-  const outputPath = path.join(CONFIG.OUTPUT_DIR, 'screenshots_merged.pdf');
   fs.writeFileSync(outputPath, pdfBytes);
 
-  console.log(`\nPDF saved to: ${outputPath}`);
+  console.log(`\n✅ PDF saved to: ${outputPath}`);
   return outputPath;
 }
 
@@ -180,21 +250,53 @@ async function main() {
   console.log('Screenshot to PDF Tool\n');
   console.log('='.repeat(50));
 
-  // Extract URLs
-  console.log('\nExtracting URLs from crawl_report.md...');
-  const urls = extractUrls();
-  console.log(`Found ${urls.length} unique URLs\n`);
+  console.log('\nLaunching browser...');
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
-  // Take screenshots
-  const screenshotPaths = await takeScreenshots(urls);
-  console.log(`\nCaptured ${screenshotPaths.length} screenshots`);
+  try {
+    // Detect idea of the day
+    const ideaUrl = await detectIdeaOfTheDay(browser);
+    const ideaSlug = extractIdeaSlug(ideaUrl);
 
-  // Merge to PDF
-  if (screenshotPaths.length > 0) {
-    await mergeToPdf(screenshotPaths);
+    console.log(`\n📌 Idea URL: ${ideaUrl}`);
+    console.log(`📝 Idea Slug: ${ideaSlug}`);
+
+    // Set up idea-specific output directories
+    CONFIG.OUTPUT_DIR = path.join(CONFIG.BASE_OUTPUT_DIR, ideaSlug);
+    CONFIG.SCREENSHOTS_DIR = path.join(CONFIG.OUTPUT_DIR, 'screenshots');
+
+    console.log(`\n📁 Creating output directories:`);
+    console.log(`   Output: ${CONFIG.OUTPUT_DIR}`);
+    console.log(`   Screenshots: ${CONFIG.SCREENSHOTS_DIR}`);
+
+    // Create directories
+    if (!fs.existsSync(CONFIG.OUTPUT_DIR)) {
+      fs.mkdirSync(CONFIG.OUTPUT_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(CONFIG.SCREENSHOTS_DIR)) {
+      fs.mkdirSync(CONFIG.SCREENSHOTS_DIR, { recursive: true });
+    }
+
+    // Crawl to find all URLs for this idea
+    const urls = await crawlIdeaUrls(browser, ideaUrl);
+
+    // Take screenshots
+    const screenshotPaths = await takeScreenshots(browser, urls, CONFIG.SCREENSHOTS_DIR);
+    console.log(`\n✅ Captured ${screenshotPaths.length} screenshots`);
+
+    // Merge to PDF with idea slug as filename (in the idea folder)
+    if (screenshotPaths.length > 0) {
+      const pdfPath = path.join(CONFIG.OUTPUT_DIR, `${ideaSlug}.pdf`);
+      await mergeToPdf(screenshotPaths, pdfPath);
+    }
+
+    console.log('\n🎉 Done!');
+  } finally {
+    await browser.close();
   }
-
-  console.log('\nDone!');
 }
 
 main().catch(console.error);

@@ -8,11 +8,15 @@ const TurndownService = require('turndown');
 
 // Configuration
 const CONFIG = {
-  START_URL: '',
+  IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
+  START_URL: null, // Will be auto-detected from idea-of-the-day
+  IDEA_SLUG: null, // Will be extracted from the detected URL
   MAX_DEPTH: 1,
   SAME_DOMAIN_ONLY: true,
-  OUTPUT_DIR: './crawler_output',
-  IMAGES_DIR: './crawler_output/images',
+  BASE_OUTPUT_DIR: './crawler_output',
+  OUTPUT_DIR: null, // Will be set to BASE_OUTPUT_DIR/{idea-slug}
+  IMAGES_DIR: null, // Will be set to OUTPUT_DIR/images
+  SCREENSHOTS_DIR: null, // Will be set to OUTPUT_DIR/screenshots
   TIMEOUT: 30000,
   DELAY_BETWEEN_REQUESTS: 1000,
   COOKIES: [
@@ -66,7 +70,7 @@ class WebCrawler {
     this.browser = null;
     this.imageMap = new Map();
     this.imageCounter = 0;
-    this.domainHost = new url.URL(CONFIG.START_URL).hostname;
+    this.domainHost = 'www.ideabrowser.com';
   }
 
   async initialize() {
@@ -75,15 +79,106 @@ class WebCrawler {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
+    console.log('✅ Browser initialized');
+  }
 
-    // Create output directories
+  // Create output directories for the detected idea
+  createOutputDirectories() {
+    console.log(`📁 Creating output directories for: ${CONFIG.IDEA_SLUG}`);
+
+    // Set up paths based on idea slug
+    CONFIG.OUTPUT_DIR = path.join(CONFIG.BASE_OUTPUT_DIR, CONFIG.IDEA_SLUG);
+    CONFIG.IMAGES_DIR = path.join(CONFIG.OUTPUT_DIR, 'images');
+    CONFIG.SCREENSHOTS_DIR = path.join(CONFIG.OUTPUT_DIR, 'screenshots');
+
+    // Create directories
     if (!fs.existsSync(CONFIG.OUTPUT_DIR)) {
       fs.mkdirSync(CONFIG.OUTPUT_DIR, { recursive: true });
     }
     if (!fs.existsSync(CONFIG.IMAGES_DIR)) {
       fs.mkdirSync(CONFIG.IMAGES_DIR, { recursive: true });
     }
-    console.log('✅ Browser initialized');
+    if (!fs.existsSync(CONFIG.SCREENSHOTS_DIR)) {
+      fs.mkdirSync(CONFIG.SCREENSHOTS_DIR, { recursive: true });
+    }
+
+    console.log(`   Output: ${CONFIG.OUTPUT_DIR}`);
+    console.log(`   Images: ${CONFIG.IMAGES_DIR}`);
+    console.log(`   Screenshots: ${CONFIG.SCREENSHOTS_DIR}`);
+  }
+
+  // Extract idea slug from URL (e.g., "budget-dashboard-for-sports-teams-394" from full URL)
+  extractIdeaSlug(ideaUrl) {
+    try {
+      const urlObj = new url.URL(ideaUrl);
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      // URL format: /idea/slug-name-123
+      if (pathParts.length >= 2 && pathParts[0] === 'idea') {
+        return pathParts[1];
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Detect the idea URL from /idea-of-the-day page
+  async detectIdeaOfTheDay() {
+    console.log('🔍 Detecting Idea of the Day...');
+    console.log(`   Navigating to: ${CONFIG.IDEA_OF_THE_DAY_URL}`);
+
+    const page = await this.browser.newPage();
+
+    // Set cookies
+    await page.setCookie(...CONFIG.COOKIES);
+
+    // Set headers
+    await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+    await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+
+    // Wait for page to render
+    await page.waitForSelector('body', { timeout: 10000 });
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Get the current URL after any redirects
+    const currentUrl = page.url();
+    console.log(`   Current URL after load: ${currentUrl}`);
+
+    // Look for idea links on the page
+    const ideaUrl = await page.evaluate(() => {
+      // First check if we're already on an idea page (redirected)
+      if (window.location.pathname.startsWith('/idea/') && !window.location.pathname.includes('idea-of-the-day')) {
+        return window.location.href;
+      }
+
+      // Otherwise, find the first idea link on the page
+      const ideaLinks = document.querySelectorAll('a[href*="/idea/"]');
+      for (const link of ideaLinks) {
+        const href = link.href;
+        // Make sure it's an actual idea page, not a sub-page like /idea/xxx/build
+        const pathParts = new URL(href).pathname.split('/').filter(p => p);
+        if (pathParts.length === 2 && pathParts[0] === 'idea') {
+          return href;
+        }
+      }
+      return null;
+    });
+
+    await page.close();
+
+    if (ideaUrl) {
+      console.log(`✅ Detected Idea of the Day: ${ideaUrl}`);
+      return ideaUrl;
+    }
+
+    // If redirected to an idea page
+    if (currentUrl.includes('/idea/') && !currentUrl.includes('idea-of-the-day')) {
+      console.log(`✅ Redirected to Idea of the Day: ${currentUrl}`);
+      return currentUrl;
+    }
+
+    throw new Error('Could not detect Idea of the Day URL');
   }
 
   isSameDomain(targetUrl) {
@@ -314,6 +409,7 @@ class WebCrawler {
 
     let markdown = '# Web Crawl Results\n\n';
     markdown += `Generated: ${new Date().toISOString()}\n`;
+    markdown += `Idea: ${CONFIG.IDEA_SLUG}\n`;
     markdown += `Total pages crawled: ${this.pageData.size}\n\n`;
     markdown += '---\n\n';
 
@@ -348,7 +444,9 @@ class WebCrawler {
       markdown += '---\n\n';
     }
 
-    const mdPath = path.join(CONFIG.OUTPUT_DIR, 'crawl_report.md');
+    // Use idea slug for filename
+    const filename = CONFIG.IDEA_SLUG ? `${CONFIG.IDEA_SLUG}.md` : 'crawl_report.md';
+    const mdPath = path.join(CONFIG.OUTPUT_DIR, filename);
     fs.writeFileSync(mdPath, markdown);
     console.log(`✅ Markdown exported to: ${mdPath}`);
     return mdPath;
@@ -357,7 +455,9 @@ class WebCrawler {
   async exportToPdf() {
     console.log('\n📑 Exporting to PDF...');
 
-    const pdfPath = path.join(CONFIG.OUTPUT_DIR, 'crawl_report.pdf');
+    // Use idea slug for filename
+    const filename = CONFIG.IDEA_SLUG ? `${CONFIG.IDEA_SLUG}.pdf` : 'crawl_report.pdf';
+    const pdfPath = path.join(CONFIG.OUTPUT_DIR, filename);
 
     // Sort by depth then by URL
     const sortedPages = Array.from(this.pageData.values())
@@ -527,11 +627,21 @@ class WebCrawler {
   async run() {
     try {
       console.log('🕷️  Web Crawler Started\n');
-      console.log(`Start URL: ${CONFIG.START_URL}`);
-      console.log(`Max Depth: ${CONFIG.MAX_DEPTH}`);
-      console.log(`Same Domain Only: ${CONFIG.SAME_DOMAIN_ONLY}\n`);
 
       await this.initialize();
+
+      // Auto-detect idea of the day URL
+      CONFIG.START_URL = await this.detectIdeaOfTheDay();
+      CONFIG.IDEA_SLUG = this.extractIdeaSlug(CONFIG.START_URL);
+
+      // Create output directories for this idea
+      this.createOutputDirectories();
+
+      console.log(`\n📌 Start URL: ${CONFIG.START_URL}`);
+      console.log(`📝 Idea Slug: ${CONFIG.IDEA_SLUG}`);
+      console.log(`🔢 Max Depth: ${CONFIG.MAX_DEPTH}`);
+      console.log(`🌐 Same Domain Only: ${CONFIG.SAME_DOMAIN_ONLY}\n`);
+
       await this.crawlPage(CONFIG.START_URL, 0);
 
       console.log('\n' + '='.repeat(50));
