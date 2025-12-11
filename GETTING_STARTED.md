@@ -32,7 +32,11 @@ npm start
 
 The crawler will:
 - 🔍 Start from the configured URL
-- 🔗 Follow links up to 3 levels deep
+- 🔗 Follow links 4 levels deep:
+  - Level 1: All links from starting URI
+  - Level 2: All links from Level 1 pages
+  - Level 3: All links from Level 2 pages
+  - Level 4: All links from Level 3 pages
 - 📸 Download all images
 - 📄 Generate PDF & Markdown reports
 
@@ -75,7 +79,7 @@ START_URL: 'https://www.ideabrowser.com/your-new-url/'
 ### Want to crawl deeper?
 Edit line 12:
 ```javascript
-MAX_DEPTH: 4  // Changed from 3
+MAX_DEPTH: 5  // Changed from 4
 ```
 
 ### Want faster crawling?
@@ -92,7 +96,7 @@ DELAY_BETWEEN_REQUESTS: 2000  // Changed from 1000
 
 ## 📈 Expected Output
 
-**For a 3-level deep crawl:**
+**For a 4-level deep crawl:**
 - ⏱️ Runtime: 2-10 minutes
 - 📄 PDF: 5-50 MB
 - 📝 Markdown: 1-10 MB

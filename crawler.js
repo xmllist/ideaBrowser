@@ -9,7 +9,7 @@ const TurndownService = require('turndown');
 // Configuration
 const CONFIG = {
   START_URL: 'https://www.ideabrowser.com/idea/budget-dashboard-for-sports-teams-that-shows-parents-real-time-spending-394/',
-  MAX_DEPTH: 3,
+  MAX_DEPTH: 4,
   SAME_DOMAIN_ONLY: true,
   OUTPUT_DIR: './crawler_output',
   IMAGES_DIR: './crawler_output/images',

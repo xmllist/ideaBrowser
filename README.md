@@ -4,7 +4,7 @@ A comprehensive web crawler for ideabrowser.com that extracts content, images, a
 
 ## Features
 
-✅ **Recursive crawling** - Follow links up to 3 levels deep
+✅ **Recursive crawling** - Follow links 4 levels deep
 ✅ **Same-domain protection** - Only crawl ideabrowser.com
 ✅ **Image extraction** - Download and embed all images
 ✅ **Dual export** - Generate both PDF and Markdown reports

@@ -24,7 +24,11 @@ node crawler.js
 
 That's it! The crawler will:
 - ✅ Start crawling from the configured URL
-- ✅ Follow links up to 3 levels deep
+- ✅ Follow links 4 levels deep:
+  - Level 1: All links from starting URI
+  - Level 2: All links from Level 1 pages
+  - Level 3: All links from Level 2 pages
+  - Level 4: All links from Level 3 pages
 - ✅ Download all images
 - ✅ Generate PDF and Markdown reports
 - ✅ Save everything to `crawler_output/`

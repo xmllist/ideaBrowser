@@ -71,7 +71,7 @@ DEFAULT CONFIGURATION
 ================================================================================
 
 START_URL:                 https://www.ideabrowser.com/idea/budget-dashboard-...
-MAX_DEPTH:                 3 levels
+MAX_DEPTH:                 4 levels
 SAME_DOMAIN_ONLY:          true
 TIMEOUT:                   30 seconds
 DELAY_BETWEEN_REQUESTS:    1 second

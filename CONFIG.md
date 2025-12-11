@@ -7,13 +7,15 @@ Complete guide to all configuration options in `crawler.js`.
 ```javascript
 const CONFIG = {
   // Starting point for crawling
-  START_URL: 'https://www.ideabrowser.com/idea/...',
+  START_URL: 'https://www.ideabrowser.com/idea/budget-dashboard-for-sports-teams-that-shows-parents-real-time-spending-394/',
 
   // How many levels deep to follow links (0-5)
   // 0 = just this page
-  // 1 = this page + links on it
-  // 3 = recommended for most uses
-  MAX_DEPTH: 3,
+  // 1 = links from starting URI
+  // 2 = links from level 1
+  // 3 = links from level 2
+  // 4 = links from level 3 (current setting)
+  MAX_DEPTH: 4,
 
   // Only crawl ideabrowser.com (don't follow external links)
   SAME_DOMAIN_ONLY: true,
