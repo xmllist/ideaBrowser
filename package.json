@@ -8,10 +8,10 @@
     "crawl": "node crawler.js"
   },
   "dependencies": {
+    "pdf-lib": "^1.17.1",
     "puppeteer": "^22.0.0",
     "turndown": "^7.1.2"
   },
-  "devDependencies": {},
   "keywords": [
     "crawler",
     "scraper",
