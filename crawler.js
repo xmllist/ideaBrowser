@@ -71,6 +71,32 @@ class WebCrawler {
     }
   }
 
+  isChildOfStartUrl(targetUrl) {
+    try {
+      // Extract base path from starting URL (everything up to and including /idea/...)
+      const startUrlObj = new url.URL(CONFIG.START_URL);
+      const targetUrlObj = new url.URL(targetUrl);
+
+      // Get the path parts
+      const startPath = startUrlObj.pathname;
+      const targetPath = targetUrlObj.pathname;
+
+      // Extract the main path segment (e.g., "/idea" or "/idea/budget-dashboard-...")
+      const startPathParts = startPath.split('/').filter(p => p);
+      const targetPathParts = targetPath.split('/').filter(p => p);
+
+      // Both should start with at least the first path segment
+      if (startPathParts.length === 0 || targetPathParts.length === 0) {
+        return false;
+      }
+
+      // Check if target path starts with the main category of start URL
+      return targetPathParts[0] === startPathParts[0];
+    } catch {
+      return false;
+    }
+  }
+
   isValidUrl(targetUrl) {
     try {
       const parsed = new url.URL(targetUrl);
@@ -126,6 +152,11 @@ class WebCrawler {
 
     if (!this.isSameDomain(pageUrl)) {
       console.log(`⏭️  Different domain: ${pageUrl}`);
+      return [];
+    }
+
+    if (!this.isChildOfStartUrl(pageUrl)) {
+      console.log(`⏭️  Different path (not related to start URL): ${pageUrl}`);
       return [];
     }
 
@@ -189,7 +220,7 @@ class WebCrawler {
       // Recursively crawl linked pages
       const newLinks = [];
       for (const link of links) {
-        if (this.isValidUrl(link.href) && !this.visitedUrls.has(link.href)) {
+        if (this.isValidUrl(link.href) && !this.visitedUrls.has(link.href) && this.isChildOfStartUrl(link.href)) {
           newLinks.push(link.href);
         }
       }
