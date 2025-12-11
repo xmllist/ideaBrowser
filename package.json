@@ -1,0 +1,23 @@
+{
+  "name": "ideabrowser-crawler",
+  "version": "1.0.0",
+  "description": "Web crawler for ideabrowser.com with PDF and Markdown export",
+  "main": "crawler.js",
+  "scripts": {
+    "start": "node crawler.js",
+    "crawl": "node crawler.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0",
+    "turndown": "^7.1.2"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "crawler",
+    "scraper",
+    "pdf",
+    "markdown"
+  ],
+  "author": "",
+  "license": "MIT"
+}
