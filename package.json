@@ -8,6 +8,7 @@
     "crawl": "node crawler.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "pdf-lib": "^1.17.1",
     "puppeteer": "^22.0.0",
     "turndown": "^7.1.2"

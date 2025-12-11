@@ -1,3 +1,4 @@
+require('dotenv').config();
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
@@ -7,16 +8,16 @@ const http = require('http');
 const TurndownService = require('turndown');
 const { PDFDocument } = require('pdf-lib');
 
-// Telegram Configuration
+// Telegram Configuration (from environment variables)
 const TELEGRAM = {
-  BOT_TOKEN: '8559272871:AAHQ6AjXLTkTM0L9b9Lk7qKySg6-AFCWBpA',
-  CHAT_ID: '413608487'
+  BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  CHAT_ID: process.env.TELEGRAM_CHAT_ID
 };
 
-// Login Credentials
+// Login Credentials (from environment variables)
 const LOGIN = {
-  EMAIL: 'tronghv79@gmail.com',
-  PASSWORD: '113Thanhcong',
+  EMAIL: process.env.LOGIN_EMAIL,
+  PASSWORD: process.env.LOGIN_PASSWORD,
   LOGIN_URL: 'https://www.ideabrowser.com/login'
 };
 

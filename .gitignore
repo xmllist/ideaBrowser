@@ -1,2 +1,4 @@
 crawler_output/
 node_modules/
+.env*
+cookies.json
