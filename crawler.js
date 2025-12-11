@@ -399,30 +399,32 @@ class WebCrawler {
 
     // Add each page
     for (const pageData of sortedPages) {
-      const imageAbsPaths = pageData.images
-        .filter(img => fs.existsSync(img.filepath))
-        .map(img => {
-          const absPath = path.resolve(img.filepath);
-          // Format file URL for Puppeteer
-          return process.platform === 'win32'
-            ? `file:///${absPath}`
-            : `file://${absPath}`;
-        });
+      const imageBase64s = pageData.images
+        .filter(img => fs.existsSync(img.filepath));
 
       htmlContent += `
     <div class="page-entry">
       <h2 class="page-title">${this.escapeHtml(pageData.title)}</h2>
       <div class="page-url">📌 <strong>URL:</strong> <a href="${pageData.url}">${pageData.url}</a></div>
       <div class="page-depth">📊 <strong>Depth Level:</strong> ${pageData.depth}</div>
-      ${imageAbsPaths.length > 0 ? `
+      ${imageBase64s.length > 0 ? `
         <div class="images-section">
           <div class="images-title">Images</div>
-          ${imageAbsPaths.map((imgPath, idx) => `
+          ${imageBase64s.map((img) => {
+            try {
+              const imageBuffer = fs.readFileSync(img.filepath);
+              const base64 = imageBuffer.toString('base64');
+              const ext = path.extname(img.filepath).toLowerCase().slice(1);
+              const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+              return `
             <div class="image-item">
-              <img src="${imgPath}" alt="${this.escapeHtml(pageData.images[idx].alt)}">
-              <div class="image-alt">${this.escapeHtml(pageData.images[idx].alt)}</div>
-            </div>
-          `).join('')}
+              <img src="data:${mimeType};base64,${base64}" alt="${this.escapeHtml(img.alt)}" style="max-width: 500px;">
+              <div class="image-alt">${this.escapeHtml(img.alt)}</div>
+            </div>`;
+            } catch (e) {
+              return `<div class="image-item"><p>Image failed to load</p></div>`;
+            }
+          }).join('')}
         </div>
       ` : ''}
     </div>`;
@@ -433,28 +435,16 @@ class WebCrawler {
 </body>
 </html>`;
 
-    // Create temporary HTML file
-    const tempHtmlPath = path.join(CONFIG.OUTPUT_DIR, 'temp_report.html');
-    const absoluteTempHtmlPath = path.resolve(tempHtmlPath);
-    fs.writeFileSync(absoluteTempHtmlPath, htmlContent);
-
-    // Use puppeteer to convert HTML to PDF
-    const tempPage = await this.browser.newPage();
-    // Properly format file URL for Puppeteer (no double slashes on macOS/Linux)
-    const fileUrl = process.platform === 'win32'
-      ? `file:///${absoluteTempHtmlPath}`
-      : `file://${absoluteTempHtmlPath}`;
-    await tempPage.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await tempPage.pdf({
+    // Use puppeteer to convert HTML to PDF directly using setContent
+    const pdfPage = await this.browser.newPage();
+    await pdfPage.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
+    await pdfPage.pdf({
       path: pdfPath,
       format: 'A4',
       printBackground: true,
       margin: { top: '20px', bottom: '20px', left: '20px', right: '20px' }
     });
-    await tempPage.close();
-
-    // Clean up temporary HTML file
-    fs.unlinkSync(absoluteTempHtmlPath);
+    await pdfPage.close();
 
     console.log(`✅ PDF exported to: ${pdfPath}`);
     return pdfPath;
