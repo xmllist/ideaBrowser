@@ -401,7 +401,13 @@ class WebCrawler {
     for (const pageData of sortedPages) {
       const imageAbsPaths = pageData.images
         .filter(img => fs.existsSync(img.filepath))
-        .map(img => `file://${path.resolve(img.filepath)}`);
+        .map(img => {
+          const absPath = path.resolve(img.filepath);
+          // Format file URL for Puppeteer
+          return process.platform === 'win32'
+            ? `file:///${absPath}`
+            : `file://${absPath}`;
+        });
 
       htmlContent += `
     <div class="page-entry">
@@ -429,11 +435,16 @@ class WebCrawler {
 
     // Create temporary HTML file
     const tempHtmlPath = path.join(CONFIG.OUTPUT_DIR, 'temp_report.html');
-    fs.writeFileSync(tempHtmlPath, htmlContent);
+    const absoluteTempHtmlPath = path.resolve(tempHtmlPath);
+    fs.writeFileSync(absoluteTempHtmlPath, htmlContent);
 
     // Use puppeteer to convert HTML to PDF
     const tempPage = await this.browser.newPage();
-    await tempPage.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle2' });
+    // Properly format file URL for Puppeteer (no double slashes on macOS/Linux)
+    const fileUrl = process.platform === 'win32'
+      ? `file:///${absoluteTempHtmlPath}`
+      : `file://${absoluteTempHtmlPath}`;
+    await tempPage.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await tempPage.pdf({
       path: pdfPath,
       format: 'A4',
@@ -443,7 +454,7 @@ class WebCrawler {
     await tempPage.close();
 
     // Clean up temporary HTML file
-    fs.unlinkSync(tempHtmlPath);
+    fs.unlinkSync(absoluteTempHtmlPath);
 
     console.log(`✅ PDF exported to: ${pdfPath}`);
     return pdfPath;
