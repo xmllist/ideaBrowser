@@ -1,0 +1,88 @@
+🕷️  Daily Idea Crawler Started
+📅 12/11/2025, 5:24:03 PM
+
+==================================================
+🚀 Initializing browser...
+✅ Browser initialized
+
+🔍 Detecting Idea of the Day...
+   Navigating to: https://www.ideabrowser.com/idea-of-the-day
+✅ Detected: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+
+📁 Creating output directories for: self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+   📂 crawler_output/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+
+📌 Idea: self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+🔗 URL: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+
+🕸️  Crawling pages...
+   [1] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+   [2] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/build/landing-page
+   [3] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/founder-fit
+   [4] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/value-ladder
+   [5] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/why-now
+   [6] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/proof-signals
+   [7] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/market-gap
+   [8] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/execution-plan
+   [9] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/build/ad-creatives
+   [10] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/build/brand-package
+   [11] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/build
+   [12] Crawling: https://www.ideabrowser.com/chat/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362
+   [13] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/download-data
+   [14] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/claim-idea
+   [15] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/value-equation
+   [16] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/value-matrix
+   [17] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/acp
+   [18] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/community-signals
+   [19] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/community-signals/reddit-analysis
+   [20] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/community-signals/facebook-analysis
+   [21] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/community-signals/youtube-analysis
+   [22] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/community-signals/other-communities
+   [23] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/keywords?keyword=facebook%20ads%20newsletter
+   [24] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/keywords?keyword=google%20ads%20newsletter
+   [25] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/keywords?keyword=newsletter%20adverts
+   [26] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/keywords?keyword=ads%20newsletter
+   [27] Crawling: https://www.ideabrowser.com/idea/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/keywords
+
+✅ Crawled 27 pages
+📸 Captured 27 screenshots
+🖼️  Downloaded 29 images
+
+📝 Exporting to Markdown...
+   ✅ Saved: crawler_output/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362.md
+
+📄 Merging screenshots to PDF...
+   [1/27] Adding: page_001.png
+   [2/27] Adding: page_002.png
+   [3/27] Adding: page_003.png
+   [4/27] Adding: page_004.png
+   [5/27] Adding: page_005.png
+   [6/27] Adding: page_006.png
+   [7/27] Adding: page_007.png
+   [8/27] Adding: page_008.png
+   [9/27] Adding: page_009.png
+   [10/27] Adding: page_010.png
+   [11/27] Adding: page_011.png
+   [12/27] Adding: page_012.png
+   [13/27] Adding: page_013.png
+   [14/27] Adding: page_014.png
+   [15/27] Adding: page_015.png
+   [16/27] Adding: page_016.png
+   [17/27] Adding: page_017.png
+   [18/27] Adding: page_018.png
+   [19/27] Adding: page_019.png
+   [20/27] Adding: page_020.png
+   [21/27] Adding: page_021.png
+   [22/27] Adding: page_022.png
+   [23/27] Adding: page_023.png
+   [24/27] Adding: page_024.png
+   [25/27] Adding: page_025.png
+   [26/27] Adding: page_026.png
+   [27/27] Adding: page_027.png
+   ✅ Saved: crawler_output/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362/self-serve-ad-booking-calendar-for-newsletter-operators-that-lets-sponsors-select-open-dates-and-pay-instantly-362.pdf
+
+📤 Sending to Telegram...
+   ✅ PDF sent to Telegram!
+
+==================================================
+🎉 Done!

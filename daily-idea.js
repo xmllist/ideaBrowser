@@ -13,6 +13,16 @@ const TELEGRAM = {
   CHAT_ID: '413608487'
 };
 
+// Login Credentials
+const LOGIN = {
+  EMAIL: 'tronghv79@gmail.com',
+  PASSWORD: '113Thanhcong',
+  LOGIN_URL: 'https://www.ideabrowser.com/login'
+};
+
+// Cookies file path for persistence
+const COOKIES_FILE = path.join(__dirname, 'cookies.json');
+
 // Crawler Configuration
 const CONFIG = {
   IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
@@ -128,6 +138,7 @@ class IdeaCrawler {
     this.imageMap = new Map();
     this.imageCounter = 0;
     this.screenshotPaths = [];
+    this.cookies = CONFIG.COOKIES; // Will be updated after login
   }
 
   extractIdeaSlug(ideaUrl) {
@@ -152,6 +163,132 @@ class IdeaCrawler {
     console.log('✅ Browser initialized');
   }
 
+  // Load cookies from file
+  loadCookies() {
+    try {
+      if (fs.existsSync(COOKIES_FILE)) {
+        const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf8'));
+        console.log('   📂 Loaded cookies from file');
+        return cookies;
+      }
+    } catch (e) {
+      console.log('   ⚠️  Could not load cookies file');
+    }
+    return CONFIG.COOKIES;
+  }
+
+  // Save cookies to file
+  saveCookies(cookies) {
+    try {
+      fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+      console.log('   💾 Saved cookies to file');
+    } catch (e) {
+      console.log('   ⚠️  Could not save cookies');
+    }
+  }
+
+  // Check if we're logged in
+  async isLoggedIn(page) {
+    const currentUrl = page.url();
+    // If on login page, not logged in
+    if (currentUrl.includes('/login')) {
+      return false;
+    }
+    // Check for login button or user avatar
+    const hasLoginButton = await page.evaluate(() => {
+      const loginLinks = document.querySelectorAll('a[href*="/login"], button:contains("Login"), button:contains("Sign in")');
+      return loginLinks.length > 0;
+    });
+    return !hasLoginButton;
+  }
+
+  // Perform login with email/password
+  async performLogin() {
+    console.log('\n🔐 Performing login...');
+    const page = await this.browser.newPage();
+    await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+    try {
+      // Navigate to login page
+      await page.goto(LOGIN.LOGIN_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log(`   📧 Logging in as: ${LOGIN.EMAIL}`);
+
+      // Fill email
+      await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 10000 });
+      await page.type('input[type="email"], input[name="email"]', LOGIN.EMAIL, { delay: 50 });
+
+      // Fill password
+      await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 10000 });
+      await page.type('input[type="password"], input[name="password"]', LOGIN.PASSWORD, { delay: 50 });
+
+      // Click login button
+      const loginButton = await page.$('button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")');
+      if (loginButton) {
+        await loginButton.click();
+      } else {
+        // Try pressing Enter
+        await page.keyboard.press('Enter');
+      }
+
+      // Wait for navigation
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Check if login was successful
+      const currentUrl = page.url();
+      if (currentUrl.includes('/login')) {
+        throw new Error('Login failed - still on login page');
+      }
+
+      // Get cookies after login
+      const cookies = await page.cookies();
+      this.saveCookies(cookies);
+      console.log('   ✅ Login successful!');
+
+      await page.close();
+      return cookies;
+    } catch (error) {
+      console.log(`   ❌ Login error: ${error.message}`);
+      // Take screenshot for debugging
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_error.png'), fullPage: true });
+      await page.close();
+      throw error;
+    }
+  }
+
+  // Ensure we're logged in, login if needed
+  async ensureLoggedIn() {
+    console.log('\n🔑 Checking authentication...');
+    const page = await this.browser.newPage();
+
+    // Try with saved/default cookies first
+    const cookies = this.loadCookies();
+    await page.setCookie(...cookies);
+    await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+    // Navigate to a protected page to check auth
+    await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const currentUrl = page.url();
+
+    // Check if redirected to login
+    if (currentUrl.includes('/login')) {
+      console.log('   ⚠️  Session expired, need to login');
+      await page.close();
+
+      // Perform login
+      const newCookies = await this.performLogin();
+      return newCookies;
+    }
+
+    console.log('   ✅ Already authenticated');
+    await page.close();
+    return cookies;
+  }
+
   createOutputDirectories() {
     console.log(`\n📁 Creating output directories for: ${CONFIG.IDEA_SLUG}`);
     CONFIG.OUTPUT_DIR = path.join(CONFIG.BASE_OUTPUT_DIR, CONFIG.IDEA_SLUG);
@@ -169,7 +306,7 @@ class IdeaCrawler {
     console.log(`   Navigating to: ${CONFIG.IDEA_OF_THE_DAY_URL}`);
 
     const page = await this.browser.newPage();
-    await page.setCookie(...CONFIG.COOKIES);
+    await page.setCookie(...this.cookies);
     await page.setExtraHTTPHeaders(CONFIG.HEADERS);
     await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
     await page.waitForSelector('body', { timeout: 10000 });
@@ -258,7 +395,7 @@ class IdeaCrawler {
     try {
       const page = await this.browser.newPage();
       await page.setViewport({ width: 1440, height: 900 });
-      await page.setCookie(...CONFIG.COOKIES);
+      await page.setCookie(...this.cookies);
       await page.setExtraHTTPHeaders(CONFIG.HEADERS);
       await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
       await page.waitForSelector('body', { timeout: 10000 });
@@ -378,6 +515,10 @@ class IdeaCrawler {
       console.log('='.repeat(50));
 
       await this.initialize();
+
+      // Ensure we're logged in (will login if session expired)
+      this.cookies = await this.ensureLoggedIn();
+
       CONFIG.START_URL = await this.detectIdeaOfTheDay();
       CONFIG.IDEA_SLUG = this.extractIdeaSlug(CONFIG.START_URL);
       this.createOutputDirectories();
