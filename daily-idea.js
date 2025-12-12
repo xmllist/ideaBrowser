@@ -11,7 +11,8 @@ const { PDFDocument } = require('pdf-lib');
 // Telegram Configuration (from environment variables)
 const TELEGRAM = {
   BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-  CHAT_ID: process.env.TELEGRAM_CHAT_ID
+  CHAT_ID: process.env.TELEGRAM_CHAT_ID,
+  TOPIC_ID: process.env.TELEGRAM_TOPIC_ID
 };
 
 // Login Credentials (from environment variables)
@@ -61,13 +62,19 @@ async function sendToTelegram(filePath, caption) {
     const fileContent = fs.readFileSync(filePath);
     const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
 
-    const body = Buffer.concat([
+    const bodyParts = [
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${TELEGRAM.CHAT_ID}\r\n`),
+    ];
+    if (TELEGRAM.TOPIC_ID) {
+      bodyParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="message_thread_id"\r\n\r\n${TELEGRAM.TOPIC_ID}\r\n`));
+    }
+    bodyParts.push(
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${fileName}"\r\nContent-Type: application/pdf\r\n\r\n`),
       fileContent,
       Buffer.from(`\r\n--${boundary}--\r\n`)
-    ]);
+    );
+    const body = Buffer.concat(bodyParts);
 
     const options = {
       hostname: 'api.telegram.org',
@@ -102,11 +109,15 @@ async function sendToTelegram(filePath, caption) {
 // Send message to Telegram
 async function sendMessage(text) {
   return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({
+    const payload = {
       chat_id: TELEGRAM.CHAT_ID,
       text: text,
       parse_mode: 'HTML'
-    });
+    };
+    if (TELEGRAM.TOPIC_ID) {
+      payload.message_thread_id = parseInt(TELEGRAM.TOPIC_ID);
+    }
+    const postData = JSON.stringify(payload);
 
     const options = {
       hostname: 'api.telegram.org',
@@ -210,26 +221,143 @@ class IdeaCrawler {
     await page.setExtraHTTPHeaders(CONFIG.HEADERS);
 
     try {
+      // Set viewport
+      await page.setViewport({ width: 1440, height: 900 });
+
       // Navigate to login page
       await page.goto(LOGIN.LOGIN_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Ensure output dir exists for screenshots
+      if (!fs.existsSync(CONFIG.BASE_OUTPUT_DIR)) {
+        fs.mkdirSync(CONFIG.BASE_OUTPUT_DIR, { recursive: true });
+      }
 
       console.log(`   📧 Logging in as: ${LOGIN.EMAIL}`);
 
-      // Fill email
-      await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 10000 });
-      await page.type('input[type="email"], input[name="email"]', LOGIN.EMAIL, { delay: 50 });
+      // Step 1: Click "Sign in with Password" FIRST to reveal password field
+      console.log('   🔄 Clicking "Sign in with Password"...');
 
-      // Fill password
-      await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 10000 });
-      await page.type('input[type="password"], input[name="password"]', LOGIN.PASSWORD, { delay: 50 });
+      // Use evaluate with PointerEvent for React compatibility - skip hidden buttons
+      const clickResult = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button');
+        for (const btn of buttons) {
+          if (btn.textContent.trim() === 'Sign in with Password') {
+            // Check if button is visible (has dimensions)
+            const rect = btn.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+              continue; // Skip hidden buttons
+            }
+            btn.scrollIntoView({ block: 'center' });
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
 
-      // Click login button
-      const loginButton = await page.$('button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")');
-      if (loginButton) {
-        await loginButton.click();
+            // Dispatch PointerEvent + MouseEvent for React
+            const pointerDown = new PointerEvent('pointerdown', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', isPrimary: true
+            });
+            const pointerUp = new PointerEvent('pointerup', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', isPrimary: true
+            });
+            const mouseDown = new MouseEvent('mousedown', {
+              bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0
+            });
+            const mouseUp = new MouseEvent('mouseup', {
+              bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0
+            });
+            const clickEvt = new MouseEvent('click', {
+              bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0
+            });
+
+            btn.dispatchEvent(pointerDown);
+            btn.dispatchEvent(mouseDown);
+            btn.dispatchEvent(pointerUp);
+            btn.dispatchEvent(mouseUp);
+            btn.dispatchEvent(clickEvt);
+
+            return { success: true, x, y };
+          }
+        }
+        return { success: false };
+      });
+
+      if (!clickResult.success) {
+        throw new Error('"Sign in with Password" button not found');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if password field appeared
+      let passwordVisible = await page.evaluate(() => {
+        const passwordInput = document.querySelector('input[type="password"]');
+        if (passwordInput) {
+          const rect = passwordInput.getBoundingClientRect();
+          return rect.height > 0 && rect.width > 0;
+        }
+        return false;
+      });
+
+      if (passwordVisible) {
+        console.log('   ✅ Clicked button');
       } else {
-        // Try pressing Enter
+        throw new Error('Password field did not appear after clicking button');
+      }
+
+      // Step 2: Fill email using page.type() for proper React compatibility
+      const emailInputs = await page.$$('input[type="email"]');
+      let emailFilled = false;
+      for (const input of emailInputs) {
+        const box = await input.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await input.click({ clickCount: 3 }); // Select all existing text
+          await input.type(LOGIN.EMAIL, { delay: 50 });
+          emailFilled = true;
+          console.log('   ✅ Email filled');
+          break;
+        }
+      }
+
+      if (!emailFilled) {
+        throw new Error('Email input not found');
+      }
+
+      // Step 3: Fill password using page.type()
+      const passwordInput = await page.$('input[type="password"]');
+      if (passwordInput) {
+        const box = await passwordInput.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await passwordInput.click();
+          await passwordInput.type(LOGIN.PASSWORD, { delay: 50 });
+          console.log('   ✅ Password filled');
+        } else {
+          throw new Error('Password input not visible');
+        }
+      } else {
+        await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_no_password.png'), fullPage: true });
+        throw new Error('Password input not found');
+      }
+
+      // Step 4: Submit login by clicking "Sign in with Password" button with real mouse
+      console.log('   🔄 Submitting login...');
+
+      const allButtons = await page.$$('button');
+      let submitClicked = false;
+      for (const button of allButtons) {
+        const text = await page.evaluate(el => el.textContent.trim(), button);
+        if (text === 'Sign in with Password') {
+          const box = await button.boundingBox();
+          if (box && box.width > 0 && box.height > 0) {
+            await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+            submitClicked = true;
+            break;
+          }
+        }
+      }
+
+      if (!submitClicked) {
+        console.log('   ⚠️  Submit button not found, pressing Enter...');
         await page.keyboard.press('Enter');
       }
 

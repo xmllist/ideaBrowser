@@ -1,3 +1,4 @@
+require('dotenv').config();
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
@@ -7,9 +8,20 @@ const http = require('http');
 const TurndownService = require('turndown');
 const { PDFDocument } = require('pdf-lib');
 
+// Login Credentials (from environment variables)
+const LOGIN = {
+  EMAIL: process.env.LOGIN_EMAIL,
+  PASSWORD: process.env.LOGIN_PASSWORD,
+  LOGIN_URL: 'https://www.ideabrowser.com/login'
+};
+
+// Cookies file path for persistence
+const COOKIES_FILE = path.join(__dirname, 'cookies.json');
+
 // Configuration
 const CONFIG = {
-  IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
+  //IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
+  IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea/smart-material-estimator-app-with-ai-predicted-waste-reduction-354',
   START_URL: null,
   IDEA_SLUG: null,
   MAX_DEPTH: 1,
@@ -45,6 +57,319 @@ class IdeaCrawler {
     this.imageMap = new Map();
     this.imageCounter = 0;
     this.screenshotPaths = [];
+    this.cookies = CONFIG.COOKIES; // Will be updated after login
+  }
+
+  // Load cookies from file
+  loadCookies() {
+    try {
+      if (fs.existsSync(COOKIES_FILE)) {
+        const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf8'));
+        console.log('   📂 Loaded cookies from file');
+        return cookies;
+      }
+    } catch (e) {
+      console.log('   ⚠️  Could not load cookies file');
+    }
+    return CONFIG.COOKIES;
+  }
+
+  // Save cookies to file
+  saveCookies(cookies) {
+    try {
+      fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+      console.log('   💾 Saved cookies to file');
+    } catch (e) {
+      console.log('   ⚠️  Could not save cookies');
+    }
+  }
+
+  // Check if we're logged in
+  async isLoggedIn(page) {
+    const currentUrl = page.url();
+    // If on login page, not logged in
+    if (currentUrl.includes('/login')) {
+      return false;
+    }
+    // Check for login button or user avatar
+    const hasLoginButton = await page.evaluate(() => {
+      const loginLinks = document.querySelectorAll('a[href*="/login"], button:contains("Login"), button:contains("Sign in")');
+      return loginLinks.length > 0;
+    });
+    return !hasLoginButton;
+  }
+
+  // Perform login with email/password
+  async performLogin() {
+    console.log('\n🔐 Performing login...');
+    const page = await this.browser.newPage();
+    await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+    try {
+      // Set viewport
+      await page.setViewport({ width: 1440, height: 900 });
+
+      // Navigate to login page
+      await page.goto(LOGIN.LOGIN_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Take screenshot to see login page structure
+      if (!fs.existsSync(CONFIG.BASE_OUTPUT_DIR)) {
+        fs.mkdirSync(CONFIG.BASE_OUTPUT_DIR, { recursive: true });
+      }
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_page.png'), fullPage: true });
+      console.log('   📸 Screenshot saved: login_page.png');
+
+      // Log page URL and check for redirects
+      console.log(`   📍 Current URL: ${page.url()}`);
+
+      console.log(`   📧 Logging in as: ${LOGIN.EMAIL}`);
+
+      // Step 1: Click "Sign in with Password" FIRST to reveal password field
+      console.log('   🔄 Clicking "Sign in with Password"...');
+
+      // Use evaluate to dispatch all required events including PointerEvent
+      const clickResult = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button');
+        for (const btn of buttons) {
+          if (btn.textContent.trim() === 'Sign in with Password') {
+            // Check if button is visible (has dimensions)
+            const rect = btn.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+              continue; // Skip hidden buttons
+            }
+            btn.scrollIntoView({ block: 'center' });
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+
+            // Dispatch PointerEvent (used by modern React)
+            const pointerDownEvt = new PointerEvent('pointerdown', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', isPrimary: true
+            });
+            const pointerUpEvt = new PointerEvent('pointerup', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', isPrimary: true
+            });
+
+            // Dispatch MouseEvent
+            const mouseDownEvt = new MouseEvent('mousedown', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, button: 0
+            });
+            const mouseUpEvt = new MouseEvent('mouseup', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, button: 0
+            });
+            const clickEvt = new MouseEvent('click', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y, button: 0
+            });
+
+            // Fire all events in proper order
+            btn.dispatchEvent(pointerDownEvt);
+            btn.dispatchEvent(mouseDownEvt);
+            btn.dispatchEvent(pointerUpEvt);
+            btn.dispatchEvent(mouseUpEvt);
+            btn.dispatchEvent(clickEvt);
+
+            return { success: true, x, y };
+          }
+        }
+        return { success: false };
+      });
+
+      if (!clickResult.success) {
+        throw new Error('"Sign in with Password" button not found');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if password field appeared
+      let passwordVisible = await page.evaluate(() => {
+        const passwordInput = document.querySelector('input[type="password"]');
+        if (passwordInput) {
+          const rect = passwordInput.getBoundingClientRect();
+          return rect.height > 0 && rect.width > 0;
+        }
+        return false;
+      });
+
+      // If still not visible, try using Puppeteer's native click
+      if (!passwordVisible) {
+        console.log('   ⚠️  Trying native click...');
+
+        // Find the button element handle and click it
+        const buttons = await page.$$('button');
+        for (const button of buttons) {
+          const text = await page.evaluate(el => el.textContent.trim(), button);
+          if (text === 'Sign in with Password') {
+            await button.evaluate(el => el.scrollIntoView({ block: 'center' }));
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            const box = await button.boundingBox();
+            if (box) {
+              await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            break;
+          }
+        }
+      }
+
+      console.log('   ✅ Clicked button');
+
+      // Take screenshot after clicking to verify
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_after_button_click.png'), fullPage: true });
+
+      // Verify password field appeared - check if it's visible, not just exists
+      passwordVisible = await page.evaluate(() => {
+        const passwordInput = document.querySelector('input[type="password"]');
+        if (passwordInput) {
+          const rect = passwordInput.getBoundingClientRect();
+          return rect.height > 0 && rect.width > 0;
+        }
+        return false;
+      });
+
+      if (passwordVisible) {
+        console.log('   ✅ Password field revealed');
+      } else {
+        await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_no_password_field.png'), fullPage: true });
+        throw new Error('Password field did not appear after clicking button');
+      }
+
+      // Step 2: Fill email using page.type() for proper React compatibility
+      // Find and click the visible email input, then type
+      const emailInputs = await page.$$('input[type="email"]');
+      let emailFilled = false;
+      for (const input of emailInputs) {
+        const box = await input.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await input.click({ clickCount: 3 }); // Select all existing text
+          await input.type(LOGIN.EMAIL, { delay: 50 });
+          emailFilled = true;
+          console.log('   ✅ Email filled');
+          break;
+        }
+      }
+
+      if (!emailFilled) {
+        throw new Error('Email input not found');
+      }
+
+      // Step 3: Fill password using page.type()
+      const passwordInput = await page.$('input[type="password"]');
+      if (passwordInput) {
+        const box = await passwordInput.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await passwordInput.click();
+          await passwordInput.type(LOGIN.PASSWORD, { delay: 50 });
+          console.log('   ✅ Password filled');
+        } else {
+          throw new Error('Password input not visible');
+        }
+      } else {
+        await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_no_password.png'), fullPage: true });
+        throw new Error('Password input not found');
+      }
+
+      // Take screenshot before submit to verify fields are filled
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_before_submit.png'), fullPage: true });
+      console.log('   📸 Screenshot saved: login_before_submit.png');
+
+      // Step 4: Submit login by clicking "Sign in with Password" button
+      console.log('   🔄 Submitting login...');
+
+      // Find the visible "Sign in with Password" button and click with real mouse
+      const allButtons = await page.$$('button');
+      let submitClicked = false;
+      for (const button of allButtons) {
+        const text = await page.evaluate(el => el.textContent.trim(), button);
+        if (text === 'Sign in with Password') {
+          const box = await button.boundingBox();
+          if (box && box.width > 0 && box.height > 0) {
+            await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+            submitClicked = true;
+            break;
+          }
+        }
+      }
+
+      if (!submitClicked) {
+        console.log('   ⚠️  Submit button not found, pressing Enter...');
+        await page.keyboard.press('Enter');
+      }
+
+      // Wait for navigation
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Take screenshot after submit
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_after_submit.png'), fullPage: true });
+      console.log('   📸 Screenshot saved: login_after_submit.png');
+
+      // Check for error messages on page
+      const errorMsg = await page.evaluate(() => {
+        const errorEl = document.querySelector('[role="alert"], .error, .text-red-500, .text-destructive');
+        return errorEl ? errorEl.textContent : null;
+      });
+      if (errorMsg) {
+        console.log(`   ⚠️  Error message: ${errorMsg.trim()}`);
+      }
+
+      // Check if login was successful
+      const currentUrl = page.url();
+      console.log(`   📍 After submit URL: ${currentUrl}`);
+      if (currentUrl.includes('/login')) {
+        throw new Error('Login failed - still on login page');
+      }
+
+      // Get cookies after login
+      const cookies = await page.cookies();
+      this.saveCookies(cookies);
+      console.log('   ✅ Login successful!');
+
+      await page.close();
+      return cookies;
+    } catch (error) {
+      console.log(`   ❌ Login error: ${error.message}`);
+      // Take screenshot for debugging
+      await page.screenshot({ path: path.join(CONFIG.BASE_OUTPUT_DIR, 'login_error.png'), fullPage: true });
+      await page.close();
+      throw error;
+    }
+  }
+
+  // Ensure we're logged in, login if needed
+  async ensureLoggedIn() {
+    console.log('\n🔑 Checking authentication...');
+    const page = await this.browser.newPage();
+
+    // Try with saved/default cookies first
+    const cookies = this.loadCookies();
+    await page.setCookie(...cookies);
+    await page.setExtraHTTPHeaders(CONFIG.HEADERS);
+
+    // Navigate to a protected page to check auth
+    await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const currentUrl = page.url();
+
+    // Check if redirected to login
+    if (currentUrl.includes('/login')) {
+      console.log('   ⚠️  Session expired, need to login');
+      await page.close();
+
+      // Perform login
+      const newCookies = await this.performLogin();
+      return newCookies;
+    }
+
+    console.log('   ✅ Already authenticated');
+    await page.close();
+    return cookies;
   }
 
   // Extract idea slug from URL
@@ -65,7 +390,7 @@ class IdeaCrawler {
   async initialize() {
     console.log('🚀 Initializing browser...');
     this.browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true, // Set to false for debugging
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     console.log('✅ Browser initialized');
@@ -92,7 +417,7 @@ class IdeaCrawler {
     console.log(`   Navigating to: ${CONFIG.IDEA_OF_THE_DAY_URL}`);
 
     const page = await this.browser.newPage();
-    await page.setCookie(...CONFIG.COOKIES);
+    await page.setCookie(...this.cookies);
     await page.setExtraHTTPHeaders(CONFIG.HEADERS);
     await page.goto(CONFIG.IDEA_OF_THE_DAY_URL, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
     await page.waitForSelector('body', { timeout: 10000 });
@@ -185,7 +510,7 @@ class IdeaCrawler {
     try {
       const page = await this.browser.newPage();
       await page.setViewport({ width: 1440, height: 900 });
-      await page.setCookie(...CONFIG.COOKIES);
+      await page.setCookie(...this.cookies);
       await page.setExtraHTTPHeaders(CONFIG.HEADERS);
       await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: CONFIG.TIMEOUT });
       await page.waitForSelector('body', { timeout: 10000 });
@@ -324,6 +649,9 @@ class IdeaCrawler {
       console.log('='.repeat(50));
 
       await this.initialize();
+
+      // Force login every time
+      this.cookies = await this.performLogin();
 
       // Detect idea of the day
       CONFIG.START_URL = await this.detectIdeaOfTheDay();

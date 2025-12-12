@@ -86,3 +86,96 @@
 
 ==================================================
 🎉 Done!
+🕷️  Daily Idea Crawler Started
+📅 12/12/2025, 11:00:01 AM
+
+==================================================
+🚀 Initializing browser...
+✅ Browser initialized
+
+🔑 Checking authentication...
+   ✅ Already authenticated
+
+🔍 Detecting Idea of the Day...
+   Navigating to: https://www.ideabrowser.com/idea-of-the-day
+✅ Detected: https://www.ideabrowser.com/idea/pet-health-scanner
+
+📁 Creating output directories for: pet-health-scanner
+   📂 crawler_output/pet-health-scanner
+
+📌 Idea: pet-health-scanner
+🔗 URL: https://www.ideabrowser.com/idea/pet-health-scanner
+
+🕸️  Crawling pages...
+   [1] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner
+   [2] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/build/landing-page
+   [3] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/founder-fit
+   [4] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/value-ladder
+   [5] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/why-now
+   [6] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/proof-signals
+   [7] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/market-gap
+   [8] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/execution-plan
+   [9] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/build/ad-creatives
+   [10] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/build/brand-package
+   [11] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/build
+   [12] Crawling: https://www.ideabrowser.com/chat/idea/pet-health-scanner
+   [13] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/download-data
+   [14] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/claim-idea
+   [15] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/value-equation
+   [16] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/value-matrix
+   [17] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/acp
+   [18] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/community-signals
+   [19] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/community-signals/reddit-analysis
+   [20] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/community-signals/facebook-analysis
+   [21] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/community-signals/youtube-analysis
+   [22] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/community-signals/other-communities
+   [23] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords?keyword=pet%20health%20care
+   [24] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords?keyword=dental%20care%20for%20dogs
+   [25] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords?keyword=cat%20dental%20care
+   [26] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords?keyword=dog%20arthritis%20treatment
+   [27] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords?keyword=online%20veterinary%20doctor
+   [28] Crawling: https://www.ideabrowser.com/idea/pet-health-scanner/keywords
+
+✅ Crawled 28 pages
+📸 Captured 28 screenshots
+🖼️  Downloaded 12 images
+
+📝 Exporting to Markdown...
+   ✅ Saved: crawler_output/pet-health-scanner/pet-health-scanner.md
+
+📄 Merging screenshots to PDF...
+   [1/28] Adding: page_001.png
+   [2/28] Adding: page_002.png
+   [3/28] Adding: page_003.png
+   [4/28] Adding: page_004.png
+   [5/28] Adding: page_005.png
+   [6/28] Adding: page_006.png
+   [7/28] Adding: page_007.png
+   [8/28] Adding: page_008.png
+   [9/28] Adding: page_009.png
+   [10/28] Adding: page_010.png
+   [11/28] Adding: page_011.png
+   [12/28] Adding: page_012.png
+   [13/28] Adding: page_013.png
+   [14/28] Adding: page_014.png
+   [15/28] Adding: page_015.png
+   [16/28] Adding: page_016.png
+   [17/28] Adding: page_017.png
+   [18/28] Adding: page_018.png
+   [19/28] Adding: page_019.png
+   [20/28] Adding: page_020.png
+   [21/28] Adding: page_021.png
+   [22/28] Adding: page_022.png
+   [23/28] Adding: page_023.png
+   [24/28] Adding: page_024.png
+   [25/28] Adding: page_025.png
+   [26/28] Adding: page_026.png
+   [27/28] Adding: page_027.png
+   [28/28] Adding: page_028.png
+   ✅ Saved: crawler_output/pet-health-scanner/pet-health-scanner.pdf
+
+📤 Sending to Telegram...
+   ✅ PDF sent to Telegram!
+
+==================================================
+🎉 Done!
