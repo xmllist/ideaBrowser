@@ -18,13 +18,16 @@ const LOGIN = {
 // Cookies file path for persistence
 const COOKIES_FILE = path.join(__dirname, 'cookies.json');
 
+// Get idea URL from command line argument or use default
+const DEFAULT_IDEA_URL = 'https://www.ideabrowser.com/idea-of-the-day';
+const cliIdeaUrl = process.argv[2];
+
 // Configuration
 const CONFIG = {
-  //IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea-of-the-day',
-  IDEA_OF_THE_DAY_URL: 'https://www.ideabrowser.com/idea/smart-material-estimator-app-with-ai-predicted-waste-reduction-354',
+  IDEA_OF_THE_DAY_URL: cliIdeaUrl || DEFAULT_IDEA_URL,
   START_URL: null,
   IDEA_SLUG: null,
-  MAX_DEPTH: 1,
+  MAX_DEPTH: 5,
   BASE_OUTPUT_DIR: './crawler_output',
   OUTPUT_DIR: null,
   IMAGES_DIR: null,
@@ -466,7 +469,24 @@ class IdeaCrawler {
 
   // Check if URL belongs to the current idea
   isIdeaUrl(targetUrl) {
-    return targetUrl && CONFIG.IDEA_SLUG && targetUrl.includes(CONFIG.IDEA_SLUG);
+    if (!targetUrl || !CONFIG.IDEA_SLUG) return false;
+
+    // Must be an idea URL and contain our slug
+    if (!targetUrl.includes('/idea/')) return false;
+
+    // Extract the slug from the target URL and compare
+    try {
+      const urlObj = new url.URL(targetUrl);
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      if (pathParts.length >= 2 && pathParts[0] === 'idea') {
+        // The slug is the second part (after 'idea')
+        return pathParts[1] === CONFIG.IDEA_SLUG;
+      }
+    } catch {
+      // Fallback to simple includes check
+      return targetUrl.includes(CONFIG.IDEA_SLUG);
+    }
+    return false;
   }
 
   // Download image
@@ -551,8 +571,32 @@ class IdeaCrawler {
       const links = await page.$$eval('a', anchors => anchors.map(a => a.href).filter(href => href));
       await page.close();
 
+      // Debug: show all idea-related links found
+      const ideaLinks = links.filter(link => link.includes('/idea/'));
+      if (ideaLinks.length > 0) {
+        console.log(`      📎 Found ${ideaLinks.length} idea links on page:`);
+        // Show unique paths (remove duplicates)
+        const uniquePaths = [...new Set(ideaLinks.map(l => {
+          try {
+            return new url.URL(l).pathname;
+          } catch {
+            return l;
+          }
+        }))];
+        uniquePaths.slice(0, 10).forEach(p => console.log(`         - ${p}`));
+        if (uniquePaths.length > 10) {
+          console.log(`         ... and ${uniquePaths.length - 10} more`);
+        }
+      }
+
       // Crawl child pages
       const newLinks = links.filter(link => !this.visitedUrls.has(link) && this.isIdeaUrl(link));
+      if (newLinks.length > 0) {
+        console.log(`      🔗 Will crawl ${newLinks.length} new sub-pages`);
+      } else if (ideaLinks.length > 0) {
+        // Debug: show why links didn't match
+        console.log(`      ⚠️  No matching sub-pages (already visited or different idea)`);
+      }
 
       await new Promise(resolve => setTimeout(resolve, CONFIG.DELAY_BETWEEN_REQUESTS));
 
@@ -648,6 +692,12 @@ class IdeaCrawler {
       console.log('🕷️  Idea Crawler Started\n');
       console.log('='.repeat(50));
 
+      if (cliIdeaUrl) {
+        console.log(`📌 Using provided URL: ${cliIdeaUrl}`);
+      } else {
+        console.log(`📌 Using default: ${DEFAULT_IDEA_URL}`);
+      }
+
       await this.initialize();
 
       // Force login every time
@@ -661,7 +711,8 @@ class IdeaCrawler {
       this.createOutputDirectories();
 
       console.log(`\n📌 Idea: ${CONFIG.IDEA_SLUG}`);
-      console.log(`🔗 URL: ${CONFIG.START_URL}\n`);
+      console.log(`🔗 URL: ${CONFIG.START_URL}`);
+      console.log(`📊 Max depth: ${CONFIG.MAX_DEPTH}\n`);
 
       // Crawl all pages
       console.log('🕸️  Crawling pages...');
