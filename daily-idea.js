@@ -11,8 +11,11 @@ const { PDFDocument } = require('pdf-lib');
 // Telegram Configuration (from environment variables)
 const TELEGRAM = {
   BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-  CHAT_ID: process.env.TELEGRAM_CHAT_ID,
-  TOPIC_ID: process.env.TELEGRAM_TOPIC_ID
+  // Parse multiple groups from comma-separated format: chat_id:topic_id,chat_id:topic_id
+  GROUPS: (process.env.TELEGRAM_GROUPS || '').split(',').filter(g => g).map(g => {
+    const [chatId, topicId] = g.split(':');
+    return { chatId: chatId.trim(), topicId: topicId?.trim() || null };
+  })
 };
 
 // Login Credentials (from environment variables)
@@ -55,18 +58,18 @@ const CONFIG = {
   }
 };
 
-// Send document to Telegram
-async function sendToTelegram(filePath, caption) {
+// Send document to a single Telegram chat
+async function sendDocumentToChat(filePath, caption, chatId, topicId) {
   return new Promise((resolve, reject) => {
     const fileName = path.basename(filePath);
     const fileContent = fs.readFileSync(filePath);
     const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
 
     const bodyParts = [
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${TELEGRAM.CHAT_ID}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}\r\n`),
     ];
-    if (TELEGRAM.TOPIC_ID) {
-      bodyParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="message_thread_id"\r\n\r\n${TELEGRAM.TOPIC_ID}\r\n`));
+    if (topicId) {
+      bodyParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="message_thread_id"\r\n\r\n${topicId}\r\n`));
     }
     bodyParts.push(
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
@@ -106,16 +109,32 @@ async function sendToTelegram(filePath, caption) {
   });
 }
 
-// Send message to Telegram
-async function sendMessage(text) {
+// Send document to all configured Telegram groups
+async function sendToTelegram(filePath, caption) {
+  const results = [];
+  for (const group of TELEGRAM.GROUPS) {
+    try {
+      await sendDocumentToChat(filePath, caption, group.chatId, group.topicId);
+      console.log(`   ✅ Sent to group ${group.chatId}`);
+      results.push({ chatId: group.chatId, success: true });
+    } catch (error) {
+      console.log(`   ❌ Failed to send to group ${group.chatId}: ${error.message}`);
+      results.push({ chatId: group.chatId, success: false, error: error.message });
+    }
+  }
+  return results;
+}
+
+// Send message to a single Telegram chat
+async function sendMessageToChat(text, chatId, topicId) {
   return new Promise((resolve, reject) => {
     const payload = {
-      chat_id: TELEGRAM.CHAT_ID,
+      chat_id: chatId,
       text: text,
       parse_mode: 'HTML'
     };
-    if (TELEGRAM.TOPIC_ID) {
-      payload.message_thread_id = parseInt(TELEGRAM.TOPIC_ID);
+    if (topicId) {
+      payload.message_thread_id = parseInt(topicId);
     }
     const postData = JSON.stringify(payload);
 
@@ -140,6 +159,17 @@ async function sendMessage(text) {
     req.write(postData);
     req.end();
   });
+}
+
+// Send message to all configured Telegram groups
+async function sendMessage(text) {
+  for (const group of TELEGRAM.GROUPS) {
+    try {
+      await sendMessageToChat(text, group.chatId, group.topicId);
+    } catch (error) {
+      console.log(`   ❌ Failed to send message to group ${group.chatId}: ${error.message}`);
+    }
+  }
 }
 
 class IdeaCrawler {
@@ -666,12 +696,11 @@ class IdeaCrawler {
       pdfPath = await this.exportToPdf();
 
       // Send to Telegram
-      console.log('\n📤 Sending to Telegram...');
+      console.log(`\n📤 Sending to ${TELEGRAM.GROUPS.length} Telegram group(s)...`);
       const ideaName = CONFIG.IDEA_SLUG.replace(/-\d+$/, '').replace(/-/g, ' ');
       const caption = `📋 Idea of the Day\n\n🎯 ${ideaName}\n\n📅 ${startTime.toLocaleDateString()}\n📄 ${this.visitedUrls.size} pages`;
 
       await sendToTelegram(pdfPath, caption);
-      console.log('   ✅ PDF sent to Telegram!');
 
       console.log('\n' + '='.repeat(50));
       console.log('🎉 Done!');
